@@ -101,7 +101,6 @@ namespace UserValidacaoUnifor.Controllers
             _context.Chamados.Update(chamado);
             _context.SaveChanges();
 
-            // Consumir a mensagem da fila RabbitMQ
             var resultado = await _rabbitMQService.ResolveItemQueue();
 
 
