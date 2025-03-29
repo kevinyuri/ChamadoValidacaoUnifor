@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using UserValidacaoUnifor.Data;
 using UserValidacaoUnifor.Models;
+using UserValidacaoUnifor.RabbitMQ;
 
 namespace SeuProjeto.Controllers
 {
@@ -10,10 +11,12 @@ namespace SeuProjeto.Controllers
     public class UserController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly RabbitMQService _rabbitMQService;
 
-        public UserController(AppDbContext context)
+        public UserController(AppDbContext context, RabbitMQService rabbitMQService)
         {
             _context = context;
+            _rabbitMQService = rabbitMQService;
         }
 
         // POST: api/User
@@ -28,6 +31,9 @@ namespace SeuProjeto.Controllers
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
+
+            var message = $"Novo usuário cadastrado: {user.Name}, {user.Email}";
+            await _rabbitMQService.SendMessageAsync(message);
 
             return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
         }

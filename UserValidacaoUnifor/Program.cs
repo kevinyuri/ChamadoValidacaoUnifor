@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using UserValidacaoUnifor.Data;
+using UserValidacaoUnifor.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
+builder.Services.AddSingleton<RabbitMQService>();
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -19,6 +21,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 );
 
 var app = builder.Build();
+
+app.UseCors(options => options.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+
+using (var scope = app.Services.CreateScope())
+{
+    var rabbitService = scope.ServiceProvider.GetRequiredService<RabbitMQService>();
+    await rabbitService.InitializeAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
