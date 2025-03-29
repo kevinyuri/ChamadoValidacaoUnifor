@@ -1,4 +1,5 @@
-﻿using RabbitMQ.Client;
+﻿using Newtonsoft.Json;
+using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 using System.Text;
 
@@ -49,8 +50,23 @@ namespace UserValidacaoUnifor.RabbitMQ
                 return;
             }
 
+
+            // Converte a mensagem em bytes e publica na fila
             var body = Encoding.UTF8.GetBytes(message);
             await _channel.BasicPublishAsync("", "chamado_queue", body: body);
+        }
+
+
+        public async Task<string> ResolveItemQueue()
+        {
+            if (_channel is null)
+            {
+                return "";
+            }
+
+            var result = await _channel.BasicGetAsync("chamado_queue", true);
+
+            return "Sucesso";
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using UserValidacaoUnifor.Data;
 using UserValidacaoUnifor.Models;
 using UserValidacaoUnifor.RabbitMQ;
@@ -27,8 +28,17 @@ namespace UserValidacaoUnifor.Controllers
             _context.Chamados.Add(chamado);
             await _context.SaveChangesAsync();
 
-            var mensagem = $"Novo chamado de TI: {chamado.NomeSolicitante}, Setor: {chamado.Setor}, Mensagem: {chamado.Mensagem}";
-            await _rabbitMQService.SendMessageChamadoAsync(mensagem);
+            var mensagem = new
+            {
+                Id = chamado.Id,
+                NomeSolicitante = chamado.NomeSolicitante,
+                Setor = chamado.Setor,
+                Mensagem = chamado.Mensagem
+            };
+
+            var mensagemJson = JsonConvert.SerializeObject(mensagem);
+
+            await _rabbitMQService.SendMessageChamadoAsync(mensagemJson);
 
             return CreatedAtAction(nameof(GetChamado), new { id = chamado.Id }, chamado);
         }
@@ -55,10 +65,49 @@ namespace UserValidacaoUnifor.Controllers
 
             if (chamados == null || !chamados.Any())
             {
-                return NotFound("Nenhum chamado encontrado.");
+                return NotFound(new { error = "Chamado não encontrado." });
             }
 
             return Ok(chamados);
+        }
+
+        [HttpGet("primeiro-chamado")]
+        public async Task<ActionResult<Chamado>> GetPrimeiroChamadoDaFila()
+        {
+            var chamado = await _context.Chamados
+                            .Where(c => c.Status == "Pendente")
+                            .OrderBy(c => c.Id)
+                            .FirstOrDefaultAsync();
+
+            if (chamado == null)
+            {
+                return NotFound(new { error = "Chamado não encontrado." });
+            }
+
+            return Ok(chamado);
+        }
+
+        [HttpPost("resolver-chamado/{chamadoId}")]
+        public async Task<IActionResult> ResolverChamado(int chamadoId)
+        {
+            var chamado = await _context.Chamados.FindAsync(chamadoId);
+
+            if (chamado == null)
+            {
+                return NotFound("Chamado não encontrado.");
+            }
+
+            chamado.Status = "Resolvido";
+            _context.Chamados.Update(chamado);
+            _context.SaveChanges();
+
+            // Consumir a mensagem da fila RabbitMQ
+            var resultado = await _rabbitMQService.ResolveItemQueue();
+
+
+            return Ok(new { message = "Chamado resolvido com sucesso e item removido da fila." }); 
+
+
         }
     }
 }
